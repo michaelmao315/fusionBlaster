@@ -57,7 +57,7 @@ awk -F'\t' 'BEGIN {OFS="\t"} {
 cut -f6- "$filtered_output" > "python_input.tsv"
 
 # Call your Python script with the processed output file as input
-python /project/hlilab/software/fusionBlaster/db.writer.py "python_input.tsv" $genome
+python /project/hlilab/software/fusionBlaster/db.writer.py "python_input.tsv" $genome > refDB.fa
 
 
 # Clean up temporary files
