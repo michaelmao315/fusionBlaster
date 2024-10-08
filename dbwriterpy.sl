@@ -22,7 +22,7 @@ fi
 
 # Load the necessary modules
 module load gcc
-module load anoconda 
+module load anaconda 
 module load goolf R
 
 # Define a temporary file for intermediate output
