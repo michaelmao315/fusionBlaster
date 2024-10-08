@@ -8,6 +8,18 @@
 
 input=$1
 genome=$2
+OUTPUT_DIR=$3  # Pass the output directory as a third argument
+
+# Check if output directory is provided; otherwise, set a default
+if [ -z "$OUTPUT_DIR" ]; then
+    OUTPUT_DIR="database"  # Default directory name
+fi
+
+# Create the output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Change to the output directory
+cd "$OUTPUT_DIR" || exit
 
 if [[ $genome == "grch37" || $genome == "hg19" ]]; then
     transcriptome=/project/hlilab/sam/transcriptome/grch37.transcriptome.tsv
