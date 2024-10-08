@@ -28,9 +28,9 @@ FINAL_OUTPUT="$OUTPUT_DIR/final.tsv"
 SHORT_OUTPUT="$OUTPUT_DIR/short.tsv"
 
 # Set fixed paths for the Python scripts
-TTEST_CALCULATOR_SCRIPT="/project/hlilab/software/fusionBlaster/GTEx_Matrix/calculate_T_test.py"
-CHI_SQUARE_CALCULATOR_SCRIPT="/project/hlilab/software/fusionBlaster/GTEx_Matrix/calculate_chi.py"
-PROCESS_CHI_SQUARE_SCRIPT="/project/hlilab/software/fusionBlaster/GTEx_Matrix/create_short.py"
+TTEST_CALCULATOR_SCRIPT="./fusionBlaster/GTEx_Matrix/calculate_T_test.py"
+CHI_SQUARE_CALCULATOR_SCRIPT="./fusionBlaster/GTEx_Matrix/calculate_chi.py"
+PROCESS_CHI_SQUARE_SCRIPT="./fusionBlaster/GTEx_Matrix/create_short.py"
 
 # Load required modules
 module load anaconda

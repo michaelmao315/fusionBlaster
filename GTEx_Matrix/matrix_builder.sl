@@ -22,15 +22,15 @@ level=$5
 # Set the appropriate script and input file based on the analysis level
 case $level in
     g) 
-        script="/project/hlilab/software/fusionBlaster/GTEx_Matrix/gene_matrix_builder.py"
+        script="./fusionBlaster/GTEx_Matrix/gene_matrix_builder.py"
         input_file=$chimera_file
         ;;
     b) 
-        script="/project/hlilab/software/fusionBlaster/GTEx_Matrix/bp_matrix_builder.py"
+        script="./fusionBlaster/GTEx_Matrix/bp_matrix_builder.py"
         input_file=$chimera_file
         ;;
     t) 
-        script="/project/hlilab/software/fusionBlaster/GTEx_Matrix/transcript_matrix_builder.py"
+        script="./fusionBlaster/GTEx_Matrix/transcript_matrix_builder.py"
         input_file=$refDB
         ;;
     *) 

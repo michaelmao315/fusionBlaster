@@ -18,9 +18,7 @@ fi
 # Create the output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Change to the output directory
-cd "$OUTPUT_DIR" || exit
-
+# Check genome and set transcriptome accordingly
 if [[ $genome == "grch37" || $genome == "hg19" ]]; then
     transcriptome=/project/hlilab/sam/transcriptome/grch37.transcriptome.tsv
 elif [[ $genome == "grch38" || $genome == "hg38" ]]; then
@@ -37,15 +35,15 @@ module load gcc
 module load anaconda
 module load goolf R
 
-# Define output files
-full_output="full_output.tsv"
-filtered_output="filtered_output.tsv"
-filtered_input="filtered_${input##*/}"
+# Define output files in the output directory
+full_output="$OUTPUT_DIR/full_output.tsv"
+filtered_output="$OUTPUT_DIR/filtered_output.tsv"
+filtered_input="$OUTPUT_DIR/filtered_${input##*/}"
 
-# Run the R script and save the full output
+# Run the R script and save the full output in the output directory
 paste <(cat "$input") <(Rscript /project/hlilab/software/fusionBlaster/genome2transcriptome.R $genome <(cut -f2- "$input")) > "$full_output"
 
-# Filter out intron regions and create filtered output and input files
+# Filter out intron regions and create filtered output and input files in the output directory
 awk -F'\t' 'BEGIN {OFS="\t"} {
     if ($0 !~ /Intron Region/) {
         print $0 > "'"$filtered_output"'"
@@ -54,11 +52,10 @@ awk -F'\t' 'BEGIN {OFS="\t"} {
 }' "$full_output"
 
 # Extract only the R script output for the Python script
-cut -f6- "$filtered_output" > "python_input.tsv"
+cut -f6- "$filtered_output" > "$OUTPUT_DIR/python_input.tsv"
 
-# Call your Python script with the processed output file as input
-python /project/hlilab/software/fusionBlaster/db.writer.py "python_input.tsv" $genome > refDB.fa
-
+# Call your Python script and save its output to refDB.fa in the output directory
+python /project/hlilab/software/fusionBlaster/db.writer.py "$OUTPUT_DIR/python_input.tsv" $genome > "$OUTPUT_DIR/refDB.fa"
 
 # Clean up temporary files
 # rm -f "$full_output" "python_input.tsv"
