@@ -29,10 +29,10 @@ module load goolf R
 temp_output=$(mktemp)
 
 # Run the R script and filter the output, then write to a temporary file
-Rscript /project/hlilab/software/fusionBlaster/genome2transcriptome.R $genome <(cut -f2- $input) | grep -v "Intron Region" > "$temp_output"
+Rscript ./fusionBlaster/genome2transcriptome.R $genome <(cut -f2- $input) | grep -v "Intron Region" > "$temp_output"
 
 # Call your Python script with the temporary file as input
-python /project/hlilab/software/fusionBlaster/db.writer.py "$temp_output" $genome
+python ./fusionBlaster/db.writer.py "$temp_output" $genome
 
 # Optionally, remove the temporary file if you don't need it after the script runs
 rm "$temp_output"
