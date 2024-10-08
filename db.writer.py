@@ -49,7 +49,7 @@ def run_r_script_and_create_dict(script_path, genome, ensts_str):
 
     return transcriptome_dict
 
-transcriptome_script_path = os.path.expanduser("~/R/scripts/transcriptome.R")
+transcriptome_script_path = "./fusionBlaster/transcriptome.R"
 transcriptome = run_r_script_and_create_dict(transcriptome_script_path, genome, ensts_str)
 
 unique_entries = {}  # To store unique parent and chimeric sequences
