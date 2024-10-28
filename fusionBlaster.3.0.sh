@@ -1,8 +1,4 @@
 #!/bin/bash
-#SBATCH --account=hlilab
-#SBATCH --partition=standard
-#SBATCH --time=0-95:59:59
-#SBATCH --nodes=1
 
 in=$1
 out=$2
@@ -21,18 +17,16 @@ start_time=$(date +%s)
 
 if [[ $in == "" || $out == "" || $fastq == "" || refDB == "" ]]; then 
 echo "Proper Usage:"
-echo 'sbatch --error=[uniq].err --output=[uniq].out --job-name=[uniq] fusionBlaster.sl /full/path/to/directory/of/fastqs /full/path/to/output/directory uniqFASTQid full/path/to/refDB.fa /full/path/to/chimeras.input.tsv'
+echo './fusionBlaster.sh /full/path/to/directory/of/fastqs /full/path/to/output/directory uniqFASTQid full/path/to/refDB.fa /full/path/to/chimeras.input.tsv cores'
 echo '=================================================================='
-echo '[uniq] needs to be unique to each set of fastq files; should match uniqFASTQid'
 echo '/full/path/to/directory/of/fastqs should be full path to a central directory where all fastq files to be analyzed are located'
 echo '/full/path/to/output/directory should be single output directory where results from all fastqs anlayzed by same chimeras.input.tsv are located'
 echo 'uniqFASTQid should be used from fastq files as [uniqFASTQid]_R1.fq.gz or [uniqFASTQid]_2.fastq.gz'
-echo '/full/path/to/refDB.fa should be full path to the refDB.fa file created as STDOUT by the refDBwriter.sl'
-echo '/full/path/to/chimeras.input.tsv is the full pth to the original input file with chimera names, ENSGs, and breakpoint info'
-exit
+echo '/full/path/to/refDB.fa should be full path to the refDB.fa file created as STDOUT by the refDBwriter.sh'
+echo '/full/path/to/chimeras.input.tsv is the full path to the original input file with chimera names, ENSGs, and breakpoint info'
+echo 'cores is the number of CPU cores to use'
+exit 1
 fi
-
-module load anaconda
 
 fq1=$(ls $in | grep "^$fastq"_ | grep -f <( echo fq ; echo fastq) |  sort -u | head -1)
 fq2=$(ls $in | grep "^$fastq"_ | grep -f <( echo fq ; echo fastq) |  sort -u | tail -1)
@@ -41,32 +35,30 @@ echo 'fastq files were either not found in the specified input directory or are 
 echo 'fastq files must be paired end fastq files name like:'
 echo 'uniq_1.fastq.gz uniq_2.fastq.gz or uniq_1.fq.gz uniq_2.fq.gz'
 echo 'uniq_R1.fastq.gz uniq_R2.fastq.gz or uniq_R1.fq.gz uniq_R2.fq.gz'
-exit
+exit 1
 fi
 
 echo ${in}/$fq1 ${in}/$fq2
 
-readLength=$(for read in $(zcat ${in}/$fq1 | tail -n +2 | awk 'NR%4==1' | head -2000); do echo $read | wc -m ; done | awk '{ sum += $1-1 } END { if (NR > 0) print sum / NR }' | cut -d. -f1)
+readLength=$(for read in $(gzcat ${in}/$fq1 | tail -n +2 | awk 'NR%4==1' | head -2000); do echo $read | wc -m ; done | awk '{ sum += $1-1 } END { if (NR > 0) print sum / NR }' | cut -d. -f1)
 cdir=$(pwd)
 
 echo $readLength
 echo $cdir
 echo $out
 
-source ~/.bashrc
 if [ ! -d "$out" ]; then
   mkdir -p "$out"
 fi
 
 #convert fastqs to a fasta with read_1 and read_2 pasted together
-zcat ${in}/$fq1 | paste - - - - | cut -f1,2 | tr "@""\t" ">""\n" > ${out}/${fastq}_tmp1
-paste <(zcat ${in}/$fq2 | paste - - - - | cut -f1 | tr "@" ">") <(zcat ${in}/$fq2 | paste - - - - | cut -f2 | tr ACTG TGAC | rev) | tr "\t" "\n" > ${out}/${fastq}_tmp2
+gzcat ${in}/$fq1 | paste - - - - | cut -f1,2 | tr "@""\t" ">""\n" > ${out}/${fastq}_tmp1
+paste <(gzcat ${in}/$fq2 | paste - - - - | cut -f1 | tr "@" ">") <(gzcat ${in}/$fq2 | paste - - - - | cut -f2 | tr ACTG TGAC | rev) | tr "\t" "\n" > ${out}/${fastq}_tmp2
 paste ${out}/${fastq}_tmp1 ${out}/${fastq}_tmp2 | awk -v IFS="\t" -v OFS="" '{if ($1~">") print $1; else print $1,$2 }' > ${out}/${fastq}_query.fa
 rm -rf ${out}/${fastq}_tmp1 ${out}/${fastq}_tmp2
 
 echo "Finished everything before pBlat"
 print_elapsed_time
-
 
 start_time=$(date +%s)
 
@@ -76,49 +68,46 @@ split -l 1000000  ${out}/${fastq}_query.fa ${out}/${fastq}_chunk_
 rm ${out}/${fastq}_query.fa
 
 # Main processing loop
-cd $out
-
-for chunk in ${fastq}_chunk_*; do
+for chunk in ${out}/${fastq}_chunk_*; do
     chunk_prefix=$(basename "$chunk" .fa)
     
     echo "Processing chunk: $chunk_prefix"
 
-    # Run pBLAT on the chunk
-    conda activate pblat
-    pblat -fastMap -threads=$cores -out=blast8 $refDB $chunk ${chunk_prefix}_pblat.out
-    conda deactivate
+    # Run pBLAT on the chunk, directing output to ${out} directory
+    pblat -fastMap -threads=$cores -out=blast8 $refDB $chunk ${out}/${chunk_prefix}_pblat.out
 
-    # Filter
-    awk -v OFS='\t' -v L=$readLength '{ if ($3>98 && $4>L-3) print $1,$2,$7,$8,$9,$10 }' ${chunk_prefix}_pblat.out > ${chunk_prefix}_blast.tsv
+    # Filter, directing blast output to ${out} directory
+    awk -v OFS='\t' -v L=$readLength '{ if ($3>98 && $4>L-3) print $1,$2,$7,$8,$9,$10 }' ${out}/${chunk_prefix}_pblat.out > ${out}/${chunk_prefix}_blast.tsv
     
-    rm $chunk ${chunk_prefix}_pblat.out
+    # Remove the chunk and temporary pblat.out
+    rm $chunk ${out}/${chunk_prefix}_pblat.out
     
     # Ensure every chunk of blast.tsv is below 10000000*cores lines
-    lines=$(wc -l < ${chunk_prefix}_blast.tsv)
+    lines=$(wc -l < ${out}/${chunk_prefix}_blast.tsv)
     if [ $lines -gt $((10000000 * cores)) ]; then
-        python ./fusionBlaster/split_file.py ${chunk_prefix}_blast.tsv ${chunk_prefix}_blast_division_ $((10000000 * cores))
-        rm ${chunk_prefix}_blast.tsv
+        python ./fusionBlaster/split_file.py ${out}/${chunk_prefix}_blast.tsv ${out}/${chunk_prefix}_blast_division_ $((10000000 * cores))
+        rm ${out}/${chunk_prefix}_blast.tsv
     else
-        mv ${chunk_prefix}_blast.tsv ${chunk_prefix}_blast_division_0001.tsv
+        mv ${out}/${chunk_prefix}_blast.tsv ${out}/${chunk_prefix}_blast_division_0001.tsv
     fi
 
     # Run fusionBlaster_1.0.py on all blast TSV divisions
-    for file in ${chunk_prefix}_blast_division_*.tsv; do
+    for file in ${out}/${chunk_prefix}_blast_division_*.tsv; do
         division=$(basename "$file" .tsv | rev | cut -d '_' -f 1 | rev)
-        python ./fusionBlaster/fusionBlaster.2.0.py $file ${chunk_prefix}_${division} $out
+        python ./fusionBlaster/fusionBlaster.2.0.py $file "${chunk_prefix}_${division}" "$out"
     done
     
     # Remove temporary files
-    rm ${chunk_prefix}_blast_division_*.tsv
+    rm ${out}/${chunk_prefix}_blast_division_*.tsv
     
     echo "Finished processing chunk: $chunk_prefix"
 done
+
 
 echo "All chunks processed"
 
 echo "Finished pBlat Loop"
 print_elapsed_time
-
 
 start_time=$(date +%s)
 
@@ -147,10 +136,10 @@ for readhashc_file in ${out}/${fastq}_chunk*readHashc.pkl; do
 done
 
 start_time=$(date +%s)
-cd $out
 
 # Combine the results from all chunks
 python ./fusionBlaster/combine_BP.py $out $fastq
+python ./fusionBlaster/combine_readHashcc.py $out $fastq
 python ./fusionBlaster/combine_geneHashcc.py $out $fastq
 python ./fusionBlaster/combine_alignment_tsv.py "$out" "$fastq"
 
@@ -163,7 +152,6 @@ python ./fusionBlaster/generate_ENSTresult.py ${fastq} $out
 # Generate gene level output
 python ./fusionBlaster/generate_ENSGresult.py ${fastq} $out
 
-
 echo "Finished fusionBlaster"
 print_elapsed_time
 
@@ -173,4 +161,4 @@ if [ $? -eq 0 ]; then
     gzip -9 ${out}/${fastq}.readAlignment.tsv
 else
     echo "Script failed or ran out of memory, files will not be removed."
-fi 
+fi
