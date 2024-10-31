@@ -1,3 +1,24 @@
+#!/usr/bin/env Rscript
+
+# Check and install BiocManager if needed
+if (!require("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager", quiet = TRUE)
+}
+
+# Ensure correct Bioconductor version
+if (BiocManager::version() != "3.18") {
+    BiocManager::install(version = "3.18", force = TRUE, ask = FALSE)
+}
+
+# Check and install required packages
+required_packages <- c("ensembldb", "plyr", "AnnotationHub", "GenomicFeatures", 
+                      "EnsDb.Hsapiens.v75", "EnsDb.Hsapiens.v86")
+for (pkg in required_packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        BiocManager::install(pkg, quiet = TRUE, ask = FALSE)
+    }
+}
+
 oldw <- getOption("warn")
 options(warn = -1)
 suppressMessages(library(ensembldb, quietly = TRUE, warn.conflicts = FALSE))
@@ -10,10 +31,7 @@ genome_version <- commandArgs()[6]
 if(genome_version == "grch37" || genome_version == "hg19"){ 
   suppressMessages(library(EnsDb.Hsapiens.v75, quietly = TRUE, warn.conflicts = FALSE))
   ensembledb <- EnsDb.Hsapiens.v75
-  
-  # Specify the path to the downloaded hg19.2bit file
-  twoBitFile <- "/project/hlilab/software/fusionBlaster/hg19.2bit"
-  dna <- rtracklayer::TwoBitFile(twoBitFile)
+  dna <- ensembldb:::getGenomeTwoBitFile(ensembledb)
   
 }else if(genome_version == "grch38" || genome_version == "hg38"){
   suppressMessages(library(EnsDb.Hsapiens.v86, quietly = TRUE, warn.conflicts = FALSE))

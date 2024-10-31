@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sys
-import tempfile
 import subprocess
 import os
+import shutil
+
 # Checking if enough arguments are passed
 if len(sys.argv) < 3:
     print("Usage: script.py <input_file> <genome>")
@@ -11,9 +12,15 @@ if len(sys.argv) < 3:
 # Reading command line arguments
 input_file = sys.argv[1]
 genome = sys.argv[2]
-ensts = set()
 
+# Create a debug directory if it doesn't exist
+debug_dir = "debug_files"
+if not os.path.exists(debug_dir):
+    os.makedirs(debug_dir)
+
+ensts = set()
 coords = []  # Store necessary data for main processing
+
 with open(input_file, 'r') as file:
     for line in file:
         line = line.strip()
@@ -24,18 +31,27 @@ with open(input_file, 'r') as file:
 ensts_str = '\n'.join(sorted(ensts))
 
 def run_r_script_and_create_dict(script_path, genome, ensts_str):
-    # Write ENSTs to a temporary file
-    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
-        temp_file_name = temp_file.name
-        temp_file.write(ensts_str)
-        temp_file.flush()
+    # Write ENSTs to a persistent file in the debug directory
+    enst_file_path = os.path.join(debug_dir, "ensts_list.txt")
+    with open(enst_file_path, 'w') as enst_file:
+        enst_file.write(ensts_str)
 
-    # Run the R script with the path to the temporary file
-    result = subprocess.run(["Rscript", script_path, genome, temp_file_name], capture_output=True, text=True)
+    # Run the R script with the path to the ENST file
+    result = subprocess.run(["Rscript", script_path, genome, enst_file_path], 
+                          capture_output=True, text=True)
 
     # Process the output into a dictionary
     transcriptome_dict = {}
     output_lines = result.stdout.strip().split('\n')
+    
+    # Save R script output for debugging
+    output_file_path = os.path.join(debug_dir, "r_script_output.txt")
+    with open(output_file_path, 'w') as output_file:
+        output_file.write(result.stdout)
+        if result.stderr:
+            output_file.write("\n=== STDERR ===\n")
+            output_file.write(result.stderr)
+
     for line in output_lines:
         parts = line.split(maxsplit=1)  # Splitting the line into two parts: ID and sequence
         if len(parts) == 2:
@@ -44,12 +60,9 @@ def run_r_script_and_create_dict(script_path, genome, ensts_str):
         else:
             print(f"Could not parse line: {line}")  # For lines that do not match the expected format
 
-    # Remove the temporary file
-    os.remove(temp_file_name)
-
     return transcriptome_dict
 
-transcriptome_script_path = "./fusionBlaster/transcriptome.R"
+transcriptome_script_path = os.path.expanduser("./fusionBlaster/transcriptome.R")
 transcriptome = run_r_script_and_create_dict(transcriptome_script_path, genome, ensts_str)
 
 unique_entries = {}  # To store unique parent and chimeric sequences
@@ -70,8 +83,9 @@ def update_or_add_entry(unique_entries, id, bp, seq):
 for parts in coords:
     if len(parts) < 4:
         continue
-
+    
     ENSG1, ENSG2 = parts[0], parts[1]
+    
     for coord1 in parts[2].split(':'):
         if ',' not in coord1:
             continue
@@ -80,6 +94,7 @@ for parts in coords:
         if seq1:
             up_seq = seq1[:int(bp1)]
             update_or_add_entry(unique_entries, f"{ENSG1}:{enst1}", bp1, seq1)
+            
             for coord2 in parts[3].split(':'):
                 if ',' not in coord2:
                     continue
@@ -90,6 +105,15 @@ for parts in coords:
                     chimeric_seq = up_seq + seq2[int(bp2) - 1:]
                     chimeric_name = f">{ENSG1}:{enst1}x{ENSG2}:{enst2},{bp2}#{bp1}"
                     unique_entries[chimeric_name] = chimeric_seq
+
+# Save unique entries to a debug file
+debug_output_path = os.path.join(debug_dir, "unique_entries.txt")
+with open(debug_output_path, 'w') as debug_file:
+    for entry_id, sequence in unique_entries.items():
+        debug_file.write(f"{entry_id}\n{sequence}\n")
+
+shutil.rmtree(debug_dir)
+
 # Print results
 for entry_id, sequence in unique_entries.items():
     print(entry_id)
