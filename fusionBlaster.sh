@@ -58,7 +58,7 @@ echo "Finished everything before pBlat"
 
 #run pBLAT and filter alignments
 
-split -l 10000000  ${out}/${fastq}_query.fa ${out}/${fastq}_chunk_
+split -l 100000    ${out}/${fastq}_query.fa ${out}/${fastq}_chunk_
 rm ${out}/${fastq}_query.fa
 
 eval "$(conda shell.bash hook)"
