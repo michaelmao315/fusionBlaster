@@ -16,8 +16,8 @@ After cloning, a folder named fusionBlaster containing all the necessary program
 Usage
 
 Step 1: Create Reference Database
-To create a reference database of chimeric RNAs, use the db.writer.py.2.sh script:
-./fusionBlaster/db.writer.py.2.sh <chimeric_input_file> <genome_id> [output_directory]
+To create a reference database of chimeric RNAs, use the db.writer.sh script:
+./fusionBlaster/db.writer.sh <chimeric_input_file> <genome_id> [output_directory]
 
 Arguments:
 
@@ -48,9 +48,9 @@ Column 5: Genomic coordinates of gene B (format: chromosome:position
 
 Step 2: Quantify Chimeras
 
-Once the reference database is created, use the fusionBlaster.3.0.sh script to quantify each chimera from RNAseq data:
+Once the reference database is created, use the fusionBlaster.sh script to quantify each chimera from RNAseq data:
 
-./fusionBlaster/fusionBlaster.3.0.sh <data_dir> <output_dir> <SRR_id> <refDB.fa> <filtered_output.tsv> <num_cores>
+./fusionBlaster/fusionBlaster.sh <data_dir> <output_dir> <SRR_id> <refDB.fa> <filtered_output.tsv> <num_cores>
 
 Arguments:
 
@@ -68,7 +68,7 @@ Arguments:
 
 Example command
 
-./fusionBlaster/fusionBlaster.3.0.sh ./data/SRR8615300 ./output/SRR8615300_3_output SRR8615300 ./fusionBlaster/database/refDB.fa ./fusionBlaster/database/filtered_output.tsv 2
+./fusionBlaster/fusionBlaster.sh ./data/SRR8615300 ./output/SRR8615300_3_output SRR8615300 ./fusionBlaster/database/refDB.fa ./fusionBlaster/database/filtered_output.tsv 2
 
 
 In this example:
