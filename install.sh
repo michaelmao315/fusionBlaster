@@ -4,19 +4,28 @@ echo "Installing dependencies..."
 
 # Function to check and install pBLAT for the correct OS
 install_pblat() {
+    # Initialize conda for shell
+    eval "$(conda shell.bash hook)"
+    
+    # Create new environment for pblat
+    conda create -n pblat_env -y python=3.8
+
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "Detected Linux. Installing Linux version of pBLAT..."
         wget https://anaconda.org/bioconda/pblat/2.5.1/download/linux-64/pblat-2.5.1-h84c94e8_2.tar.bz2
-        conda install ./pblat-2.5.1-h84c94e8_2.tar.bz2
+        conda install -n pblat_env ./pblat-2.5.1-h84c94e8_2.tar.bz2
+        rm ./pblat-2.5.1-h84c94e8_2.tar.bz2
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         echo "Detected macOS. Installing macOS version of pBLAT..."
         wget https://anaconda.org/bioconda/pblat/2.5.1/download/osx-64/pblat-2.5.1-ha5265cf_2.tar.bz2
-        conda install ./pblat-2.5.1-ha5265cf_2.tar.bz2
+        conda install -n pblat_env ./pblat-2.5.1-ha5265cf_2.tar.bz2
+        rm ./pblat-2.5.1-ha5265cf_2.tar.bz2
     else
         echo "Unsupported OS type: $OSTYPE"
         exit 1
     fi
 }
+
 
 # Check and install GCC
 if ! command -v gcc &> /dev/null; then

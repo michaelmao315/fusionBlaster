@@ -4,33 +4,7 @@ import subprocess
 import os
 import shutil
 
-# Checking if enough arguments are passed
-if len(sys.argv) < 3:
-    print("Usage: script.py <input_file> <genome>")
-    sys.exit(1)
-
-# Reading command line arguments
-input_file = sys.argv[1]
-genome = sys.argv[2]
-
-# Create a debug directory if it doesn't exist
-debug_dir = "debug_files"
-if not os.path.exists(debug_dir):
-    os.makedirs(debug_dir)
-
-ensts = set()
-coords = []  # Store necessary data for main processing
-
-with open(input_file, 'r') as file:
-    for line in file:
-        line = line.strip()
-        coords.append(line.split('\t'))  # Store as parts, not raw lines
-        for col in line.split('\t')[2:4]:  # Process only relevant columns
-            ensts.update(part.split(',')[1] for part in col.split(':') if ',' in part)
-
-ensts_str = '\n'.join(sorted(ensts))
-
-def run_r_script_and_create_dict(script_path, genome, ensts_str):
+def run_r_script_and_create_dict(script_path, genome, ensts_str, debug_dir):
     # Write ENSTs to a persistent file in the debug directory
     enst_file_path = os.path.join(debug_dir, "ensts_list.txt")
     with open(enst_file_path, 'w') as enst_file:
@@ -58,14 +32,9 @@ def run_r_script_and_create_dict(script_path, genome, ensts_str):
             transcriptome_name_id, sequence = parts
             transcriptome_dict[transcriptome_name_id] = sequence
         else:
-            print(f"Could not parse line: {line}")  # For lines that do not match the expected format
+            print(f"Could not parse line: {line}", file=sys.stderr)
 
     return transcriptome_dict
-
-transcriptome_script_path = os.path.expanduser("./fusionBlaster/transcriptome.R")
-transcriptome = run_r_script_and_create_dict(transcriptome_script_path, genome, ensts_str)
-
-unique_entries = {}  # To store unique parent and chimeric sequences
 
 def update_or_add_entry(unique_entries, id, bp, seq):
     existing_key = next((key for key, value in unique_entries.items() if value == seq), None)
@@ -80,44 +49,85 @@ def update_or_add_entry(unique_entries, id, bp, seq):
     else:
         unique_entries[f">{id}#{bp}"] = seq
 
-for parts in coords:
-    if len(parts) < 4:
-        continue
+def process_input_file(input_file, genome, script_dir):
+    # Create a debug directory if it doesn't exist
+    debug_dir = os.path.join(script_dir, "debug_files")
+    if not os.path.exists(debug_dir):
+        os.makedirs(debug_dir)
+
+    # Process input file
+    ensts = set()
+    coords = []  # Store necessary data for main processing
+
+    with open(input_file, 'r') as file:
+        for line in file:
+            line = line.strip()
+            coords.append(line.split('\t'))  # Store as parts, not raw lines
+            for col in line.split('\t')[2:4]:  # Process only relevant columns
+                ensts.update(part.split(',')[1] for part in col.split(':') if ',' in part)
+
+    ensts_str = '\n'.join(sorted(ensts))
+
+    # Get the R script path relative to the script directory
+    transcriptome_script_path = os.path.join(script_dir, "transcriptome.R")
     
-    ENSG1, ENSG2 = parts[0], parts[1]
-    
-    for coord1 in parts[2].split(':'):
-        if ',' not in coord1:
+    # Get transcriptome dictionary
+    transcriptome = run_r_script_and_create_dict(transcriptome_script_path, genome, ensts_str, debug_dir)
+
+    # Process coordinates and generate sequences
+    unique_entries = {}  # To store unique parent and chimeric sequences
+
+    for parts in coords:
+        if len(parts) < 4:
             continue
-        bp1, enst1 = coord1.split(',')
-        seq1 = transcriptome.get(enst1, "")
-        if seq1:
-            up_seq = seq1[:int(bp1)]
-            update_or_add_entry(unique_entries, f"{ENSG1}:{enst1}", bp1, seq1)
-            
-            for coord2 in parts[3].split(':'):
-                if ',' not in coord2:
-                    continue
-                bp2, enst2 = coord2.split(',')
-                seq2 = transcriptome.get(enst2, "")
-                if seq2:
-                    update_or_add_entry(unique_entries, f"{ENSG2}:{enst2}", bp2, seq2)
-                    chimeric_seq = up_seq + seq2[int(bp2) - 1:]
-                    chimeric_name = f">{ENSG1}:{enst1}x{ENSG2}:{enst2},{bp2}#{bp1}"
-                    unique_entries[chimeric_name] = chimeric_seq
+        
+        ENSG1, ENSG2 = parts[0], parts[1]
+        
+        for coord1 in parts[2].split(':'):
+            if ',' not in coord1:
+                continue
+            bp1, enst1 = coord1.split(',')
+            seq1 = transcriptome.get(enst1, "")
+            if seq1:
+                up_seq = seq1[:int(bp1)]
+                update_or_add_entry(unique_entries, f"{ENSG1}:{enst1}", bp1, seq1)
+                
+                for coord2 in parts[3].split(':'):
+                    if ',' not in coord2:
+                        continue
+                    bp2, enst2 = coord2.split(',')
+                    seq2 = transcriptome.get(enst2, "")
+                    if seq2:
+                        update_or_add_entry(unique_entries, f"{ENSG2}:{enst2}", bp2, seq2)
+                        chimeric_seq = up_seq + seq2[int(bp2) - 1:]
+                        chimeric_name = f">{ENSG1}:{enst1}x{ENSG2}:{enst2},{bp2}#{bp1}"
+                        unique_entries[chimeric_name] = chimeric_seq
 
-# Save unique entries to a debug file
-debug_output_path = os.path.join(debug_dir, "unique_entries.txt")
-with open(debug_output_path, 'w') as debug_file:
+    # Save unique entries to a debug file
+    debug_output_path = os.path.join(debug_dir, "unique_entries.txt")
+    with open(debug_output_path, 'w') as debug_file:
+        for entry_id, sequence in unique_entries.items():
+            debug_file.write(f"{entry_id}\n{sequence}\n")
+
+    # Clean up debug directory
+    shutil.rmtree(debug_dir)
+
+    # Print results
     for entry_id, sequence in unique_entries.items():
-        debug_file.write(f"{entry_id}\n{sequence}\n")
+        print(entry_id)
+        print(sequence)
 
-shutil.rmtree(debug_dir)
+    print(">ENSG00000075624:ENST00000493945#1086")
+    print("CTCACCATGGATGATGATATCGCCGCGCTCGTCGTCGACAACGGCTCCGGCATGTGCAAGGCCGGCTTCGCGGGCGACGATGCCCCCCGGGCCGTCTTCCCCTCCATCGTGGGGCGCCCCAGGCACCAGGGCGTGATGGTGGGCATGGGTCAGAAGGATTCCTATGTGGGCGACGAGGCCCAGAGCAAGAGAGGCATCCTCACCCTGAAGTACCCCATCGAGCACGGCATCGTCACCAACTGGGACGACATGGAGAAAATCTGGCACCACACCTTCTACAATGAGCTGCGTGTGGCTCCCGAGGAGCACCCCGTGCTGCTGACCGAGGCCCCCCTGAACCCCAAGGCCAACCGCGAGAAGATGACCCAGATCATGTTTGAGACCTTCAACACCCCAGCCATGTACGTTGCTATCCAGGCTGTGCTATCCCTGTACGCCTCTGGCCGTACCACTGGCATCGTGATGGACTCCGGTGACGGGGTCACCCACACTGTGCCCATCTACGAGGGGTATGCCCTCCCCCATGCCATCCTGCGTCTGGACCTGGCTGGCCGGGACCTGACTGACTACCTCATGAAGATCCTCACCGAGCGCGGCTACAGCTTCACCACCACGGCCGAGCGGGAAATCGTGCGTGACATTAAGGAGAAGCTGTGCTACGTCGCCCTGGACTTCGAGCAAGAGATGGCCACGGCTGCTTCCAGCTCCTCCCTGGAGAAGAGCTACGAGCTGCCTGACGGCCAGGTCATCACCATTGGCAATGAGCGGTTCCGCTGCCCTGAGGCACTCTTCCAGCCTTCCTTCCTGGGTGAGTGGAGACTGTCTCCCGGCTCTGCCTGACATGAGGGTTACCCCTCGGGGCTGTGCTGTGGAAGCTAAGTCCTGCCCTCATTTCCCTCTCAGGCATGGAGTCCTGTGGCATCCACGAAACTACCTTCAACTCCATCATGAAGTGTGACGTGGACATCCGCAAAGACCTGTACGCCAACACAGTGCTGTCTGGCGGCACCACCATGTACCCTGGCATTGCCGACAGGATGCAGAAGGAGATCACTGCCCTGGCACCCAGCACAATGAAGATCAAGATCATTGCTCCTCCTGAGCGCAAGTACTCCGTGTGGATCGGCGGCTCCATCCTGGCCTCGCTGTCCACCTTCCAGCAGATGTGGATCAGCAAGCAGGAGTATGACGAGTCCGGCCCCTCCATCGTCCACCGCAAATGCTTCTAGGCGGACT")
 
-# Print results
-for entry_id, sequence in unique_entries.items():
-    print(entry_id)
-    print(sequence)
+if __name__ == "__main__":
+    # Check command line arguments
+    if len(sys.argv) < 4:
+        print("Usage: script.py <input_file> <genome> <script_dir>", file=sys.stderr)
+        sys.exit(1)
 
-print(">ENSG00000075624:ENST00000493945#1086")
-print("CTCACCATGGATGATGATATCGCCGCGCTCGTCGTCGACAACGGCTCCGGCATGTGCAAGGCCGGCTTCGCGGGCGACGATGCCCCCCGGGCCGTCTTCCCCTCCATCGTGGGGCGCCCCAGGCACCAGGGCGTGATGGTGGGCATGGGTCAGAAGGATTCCTATGTGGGCGACGAGGCCCAGAGCAAGAGAGGCATCCTCACCCTGAAGTACCCCATCGAGCACGGCATCGTCACCAACTGGGACGACATGGAGAAAATCTGGCACCACACCTTCTACAATGAGCTGCGTGTGGCTCCCGAGGAGCACCCCGTGCTGCTGACCGAGGCCCCCCTGAACCCCAAGGCCAACCGCGAGAAGATGACCCAGATCATGTTTGAGACCTTCAACACCCCAGCCATGTACGTTGCTATCCAGGCTGTGCTATCCCTGTACGCCTCTGGCCGTACCACTGGCATCGTGATGGACTCCGGTGACGGGGTCACCCACACTGTGCCCATCTACGAGGGGTATGCCCTCCCCCATGCCATCCTGCGTCTGGACCTGGCTGGCCGGGACCTGACTGACTACCTCATGAAGATCCTCACCGAGCGCGGCTACAGCTTCACCACCACGGCCGAGCGGGAAATCGTGCGTGACATTAAGGAGAAGCTGTGCTACGTCGCCCTGGACTTCGAGCAAGAGATGGCCACGGCTGCTTCCAGCTCCTCCCTGGAGAAGAGCTACGAGCTGCCTGACGGCCAGGTCATCACCATTGGCAATGAGCGGTTCCGCTGCCCTGAGGCACTCTTCCAGCCTTCCTTCCTGGGTGAGTGGAGACTGTCTCCCGGCTCTGCCTGACATGAGGGTTACCCCTCGGGGCTGTGCTGTGGAAGCTAAGTCCTGCCCTCATTTCCCTCTCAGGCATGGAGTCCTGTGGCATCCACGAAACTACCTTCAACTCCATCATGAAGTGTGACGTGGACATCCGCAAAGACCTGTACGCCAACACAGTGCTGTCTGGCGGCACCACCATGTACCCTGGCATTGCCGACAGGATGCAGAAGGAGATCACTGCCCTGGCACCCAGCACAATGAAGATCAAGATCATTGCTCCTCCTGAGCGCAAGTACTCCGTGTGGATCGGCGGCTCCATCCTGGCCTCGCTGTCCACCTTCCAGCAGATGTGGATCAGCAAGCAGGAGTATGACGAGTCCGGCCCCTCCATCGTCCACCGCAAATGCTTCTAGGCGGACT")
+    input_file = sys.argv[1]
+    genome = sys.argv[2]
+    script_dir = sys.argv[3]  # New argument for script directory
+
+    process_input_file(input_file, genome, script_dir)
