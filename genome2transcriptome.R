@@ -1,5 +1,25 @@
 ## position 1/commandArgs()[6] is the reference genome and must be grch37/hg19 or grch38/hg38
 ## position 2/commandArgs()[7] is the genomecoord.input file: must be a 4 column file with first column as up ENSG (ENSG00000169926.5), second column as down ENSG (ENSG00000169032.5), third column as 5'genebreakpoint (15:31658757:+), and fourth column as 3'genebreakpoint (15:66782056:+)
+
+# Check and install BiocManager if needed
+if (!require("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager", quiet = TRUE)
+}
+
+# Ensure correct Bioconductor version
+if (BiocManager::version() != "3.18") {
+    BiocManager::install(version = "3.18", force = TRUE, ask = FALSE)
+}
+
+# Check and install required packages
+required_packages <- c("ensembldb", "plyr", "AnnotationHub", "GenomicFeatures", 
+                      "EnsDb.Hsapiens.v75", "EnsDb.Hsapiens.v86")
+for (pkg in required_packages) {
+    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+        BiocManager::install(pkg, quiet = TRUE, ask = FALSE)
+    }
+}
+
 oldw <- getOption("warn")
 options(warn = -1)
 suppressMessages(library(ensembldb, quietly = TRUE, warn.conflicts = FALSE))

@@ -64,7 +64,13 @@ rm ${out}/${fastq}_query.fa
 eval "$(conda shell.bash hook)"
 
 # Main processing loop
-for chunk in ${out}/${fastq}_chunk_*; do
+chunk_list=(${fastq}_chunk_[a-z]*)
+
+for chunk in "${chunk_list[@]}"; do
+    if [[ $chunk == *.pkl ]]; then
+        continue
+    fi
+    
     chunk_prefix=$(basename "$chunk" .fa)
     
     echo "Processing chunk: $chunk_prefix"

@@ -1,24 +1,5 @@
 #!/usr/bin/env Rscript
 
-# Check and install BiocManager if needed
-if (!require("BiocManager", quietly = TRUE)) {
-    install.packages("BiocManager", quiet = TRUE)
-}
-
-# Ensure correct Bioconductor version
-if (BiocManager::version() != "3.18") {
-    BiocManager::install(version = "3.18", force = TRUE, ask = FALSE)
-}
-
-# Check and install required packages
-required_packages <- c("ensembldb", "plyr", "AnnotationHub", "GenomicFeatures", 
-                      "EnsDb.Hsapiens.v75", "EnsDb.Hsapiens.v86")
-for (pkg in required_packages) {
-    if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
-        BiocManager::install(pkg, quiet = TRUE, ask = FALSE)
-    }
-}
-
 oldw <- getOption("warn")
 options(warn = -1)
 suppressMessages(library(ensembldb, quietly = TRUE, warn.conflicts = FALSE))
